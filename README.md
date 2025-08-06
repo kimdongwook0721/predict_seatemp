@@ -1,6 +1,6 @@
 <h1>Building an emulator for sea surface temperature</h1>
 
-<h1>Abstract</h1>
+<h2>Abstract</h2>
 <h4>We are interested in the problem of predicting sea surface temperature with machine learning</h4>
 <h4>methods using only the relevant climate factors. We tried to resolve the cost inefficiency of</h4>
 <h4>the temperature predicting model uses over a million of data[1] that is observed by about 6300[2]</h4>
