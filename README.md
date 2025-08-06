@@ -1,7 +1,7 @@
 <h1>Building an emulator for sea surface temperature</h1>
 
-<h3>Dongwook Kim, Wheaton Academy, United States</h3>
-<h3>Donghee Kim, Chung-Ang University, Republic of Korea</h3>
+<h4>Dongwook Kim, Wheaton Academy, United States</h4>
+<h4>Donghee Kim, Chung-Ang University, Republic of Korea</h4>
 
 <h1>Abstract</h1>
 <h4>We are interested in the problem of predicting sea surface temperature with machine learning</h4>
