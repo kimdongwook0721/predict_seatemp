@@ -1,3 +1,7 @@
+<style type="text/css">
+	.text {font-family: 'Times New Roman', Times, sans-serif;}
+</style>
+
 <h1>Building an emulator for sea surface temperature</h1>
 
 <h2>Abstract</h2>
