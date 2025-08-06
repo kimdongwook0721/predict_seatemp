@@ -3,7 +3,7 @@
 <h2>Abstract</h2>
 <h4>We are interested in the problem of predicting sea surface temperature with machine learning</h4>
 <h4>methods using only the relevant climate factors. We tried to resolve the cost inefficiency of</h4>
-<h4>the temperature predicting model uses over a million of data[1] that is observed by about 6300[2]</h4>
+<h4>the temperature predicting model uses over a million of data that is observed by about 6300</h4>
 <h4>NASA weather stations, a typical model that prominent agencies like NASA uses. First of all, we</h4>
 <h4>minimized the required computing power by using only velocity and pressure variables.</h4>
 <h4>Moreover, we minimized the usage of data by using only 14G of NASA-CISS data and</h4>
