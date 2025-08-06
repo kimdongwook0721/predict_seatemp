@@ -1,0 +1,55 @@
+import xarray as xr
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
+import joblib
+import pandas as pd
+import pickle
+import nc_time_axis
+from scipy.ndimage import gaussian_filter
+import matplotlib.pyplot as plt
+
+
+# Step 2: Load the netCDF datasets
+ocean_current_data_vo_surface = xr.open_dataset('_data/_ocean_current_data_vo_surface.nc')
+ocean_current_data_uo_surface = xr.open_dataset('_data/_ocean_current_data_uo_surface.nc')
+temperature_data = xr.open_dataset('_data/_temperature_data.nc')
+psl_data = xr.open_dataset('_data/_psl_data.nc')
+
+# Step 3: Prepare the data for training and testing
+# Combine the features into a single dataframe
+features = pd.concat([ocean_current_data_vo_surface.to_dataframe().reset_index(drop=True), 
+                      ocean_current_data_uo_surface.to_dataframe().reset_index(drop=True), 
+                      psl_data.to_dataframe().reset_index(drop=True)], axis=1)
+features = features[:768]  # Limit the number of samples to match the target variable
+
+# Extract the target variable
+target = temperature_data['tos']
+
+# Split the data into training and testing sets for each lat*lon point
+X_train_list = []
+X_test_list = []
+y_train_list = []
+y_test_list = []
+
+for lat in range(target.shape[1]):
+    for lon in range(target.shape[2]):
+        X_train, X_test, y_train, y_test = train_test_split(features.values, target.values[:, lat, lon], test_size=0.01, random_state=42)
+        X_train_list.append(X_train)
+        X_test_list.append(X_test)
+        y_train_list.append(y_train)
+        y_test_list.append(y_test)
+
+# Step 4: Train the model for each lat*lon point
+
+models = []
+
+for i in range(len(X_train_list)):
+    X_train_smooth = gaussian_filter(X_train_list[i], sigma=1)  # Apply Gaussian filter to the training data
+    model = RandomForestRegressor()
+    model.fit(X_train_smooth, y_train_list[i])
+
+
+with open("local_model/randomforest.pckl", "wb") as f:
+    for model in models:
+         pickle.dump(model, f)

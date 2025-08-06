@@ -1,0 +1,137 @@
+import pickle
+import xarray as xr
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.neural_network import MLPRegressor
+import pandas as pd
+import matplotlib.pyplot as plt
+import netCDF4
+import nc_time_axis
+import xgboost as xgb
+import tensorflow as tf
+import warnings
+import pandas as pd
+
+warnings.filterwarnings('ignore')
+
+# Load the netCDF datasets
+ocean_current_data_vo_surface = xr.open_dataset('_data/_ocean_current_data_vo_surface.nc')
+ocean_current_data_uo_surface = xr.open_dataset('_data/_ocean_current_data_uo_surface.nc')
+temperature_data = xr.open_dataset('_data/_temperature_data.nc')
+psl_data = xr.open_dataset('_data/_psl_data.nc')
+
+# Prepare the data for training
+avg_ocean_current_data_vo_surface = ocean_current_data_vo_surface.mean(dim=('lat', 'lon'))
+avg_ocean_current_data_uo_surface = ocean_current_data_uo_surface.mean(dim=('lat', 'lon'))
+avg_psl_data = psl_data.mean(dim=('lat', 'lon'))
+avg_temperature_data = temperature_data.mean(dim=('lat', 'lon'))
+
+mean_avg_ocean_current_data_vo_surface = avg_ocean_current_data_vo_surface.mean(dim='time')
+sd_avg_ocean_current_data_vo_surface = avg_ocean_current_data_vo_surface.std(dim='time')
+
+mean_avg_ocean_current_data_uo_surface = avg_ocean_current_data_uo_surface.mean(dim='time')
+sd_avg_ocean_current_data_uo_surface = avg_ocean_current_data_uo_surface.std(dim='time')
+
+mean_avg_psl_data = avg_psl_data.mean(dim='time')
+sd_avg_psl_data = avg_psl_data.std(dim='time')
+
+mean_avg_temperature_data = avg_temperature_data.mean(dim='time')
+sd_avg_temperature_data = avg_temperature_data.std(dim='time')
+
+avg_ocean_current_data_vo_surface_normalized = (avg_ocean_current_data_vo_surface - mean_avg_ocean_current_data_vo_surface) / sd_avg_ocean_current_data_vo_surface
+avg_ocean_current_data_uo_surface_normalized = (avg_ocean_current_data_uo_surface - mean_avg_ocean_current_data_uo_surface) / sd_avg_ocean_current_data_uo_surface
+avg_psl_data_normalized = (avg_psl_data - mean_avg_psl_data) / sd_avg_psl_data
+avg_temperature_data_normalized = (avg_temperature_data - mean_avg_temperature_data) / sd_avg_temperature_data
+
+X = pd.concat([avg_ocean_current_data_vo_surface_normalized['vo'].to_dataframe(), avg_ocean_current_data_uo_surface_normalized['uo'].to_dataframe(), avg_psl_data_normalized['psl'].to_dataframe()], axis=1)
+X = X.apply(pd.to_numeric).fillna(0)
+
+y = avg_temperature_data_normalized['tos']
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
+
+# Fine-tune Random Forest Regressor
+def randomforest(X_train, X_test, y_train, y_test):
+    param_grid = {
+        'n_estimators': [100, 200, 300],
+        'max_depth': [10, 20, 30],
+        'min_samples_split': [2, 5, 10]
+    }
+    rf_model = GridSearchCV(RandomForestRegressor(), param_grid, cv=3, scoring='neg_mean_squared_error', n_jobs=-1)
+    rf_model.fit(X_train, y_train)
+    y_pred = rf_model.predict(X_test)
+    mse_rf = mean_squared_error(y_test, y_pred)
+    print("Mean Squared Error (Random Forest):", mse_rf)
+    return mse_rf
+
+# Fine-tune MLP Regressor
+def mlp(X_train, X_test, y_train, y_test):
+    param_grid = {
+        'hidden_layer_sizes': [(50, 50), (100, 50), (100, 100)],
+        'activation': ['tanh', 'relu'],
+        'solver': ['sgd', 'adam'],
+        'alpha': [0.0001, 0.05],
+        'learning_rate': ['constant', 'adaptive']
+    }
+    mlp_model = GridSearchCV(MLPRegressor(max_iter=100), param_grid, cv=3, scoring='neg_mean_squared_error', n_jobs=-1)
+    mlp_model.fit(X_train, y_train)
+    y_pred_mlp = mlp_model.predict(X_test)
+    mse_mlp = mean_squared_error(y_test, y_pred_mlp)
+    print("Mean Squared Error (MLP):", mse_mlp)
+    return mse_mlp
+
+# Fine-tune XGBoost Regressor
+def xgboost(X_train, X_test, y_train, y_test):
+    xgb_model = xgb.XGBRegressor(
+        n_estimators=1000,
+        learning_rate=0.05,
+        max_depth=10,
+        min_child_weight=4,
+        subsample=0.7,
+        colsample_bytree=0.7,
+        gamma=0.1,
+        reg_alpha=0.3,
+        reg_lambda=0.8
+    )
+    xgb_model.fit(X_train.values, y_train.values)
+    y_pred_xgb = xgb_model.predict(X_test.values)
+    mse_xgb = mean_squared_error(y_test.values, y_pred_xgb)
+    print("Mean Squared Error (XGBoost):", mse_xgb)
+    return mse_xgb
+
+# Fine-tune TensorFlow Regressor
+def tensorflow(X_train, X_test, y_train, y_test):
+    X_train_tf = tf.convert_to_tensor(X_train.values, dtype=tf.float32)
+    y_train_tf = tf.convert_to_tensor(y_train.values, dtype=tf.float32)
+    X_test_tf = tf.convert_to_tensor(X_test.values, dtype=tf.float32)
+    y_test_tf = tf.convert_to_tensor(y_test.values, dtype=tf.float32)
+
+    model = tf.keras.Sequential([
+        tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train.shape[1],)),
+        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dense(1)
+    ])
+
+    model.compile(optimizer='adam', loss='mean_squared_error')
+    model.fit(X_train_tf, y_train_tf, epochs=50, batch_size=32, verbose=0)
+    mse_tf = model.evaluate(X_test_tf, y_test_tf)
+    print("Mean Squared Error (TensorFlow):", mse_tf)
+    return mse_tf
+
+
+
+# Calculate results for different test sizes
+results = []
+
+for i in [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75]:
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=i, random_state=42)
+    mse_rf = randomforest(X_train, X_test, y_train, y_test)
+    mse_mlp = mlp(X_train, X_test, y_train, y_test)
+    mse_xgb = xgboost(X_train, X_test, y_train, y_test)
+    mse_tf = tensorflow(X_train, X_test, y_train, y_test)
+    results.append([i, mse_rf, mse_mlp, mse_xgb, mse_tf])
+
+results_df = pd.DataFrame(results, columns=['Test Size', 'Random Forest', 'MLP', 'XGBoost', 'TensorFlow'])
+print(results_df)
